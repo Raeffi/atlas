@@ -41,6 +41,7 @@ import net.minecraft.world.gen.carver.CarverContext;
 import net.minecraft.world.gen.carver.CarvingMask;
 import net.minecraft.world.gen.carver.ConfiguredCarver;
 import net.minecraft.world.gen.chunk.*;
+import net.minecraft.world.gen.densityfunction.DensityFunction;
 import net.minecraft.world.gen.noise.NoiseConfig;
 import org.jetbrains.annotations.NotNull;
 
@@ -241,6 +242,7 @@ public class AtlasChunkGenerator extends ChunkGenerator {
         Heightmap oceanHeightmap = chunk.getHeightmap(Heightmap.Type.OCEAN_FLOOR_WG);
         Heightmap surfaceHeightmap = chunk.getHeightmap(Heightmap.Type.WORLD_SURFACE_WG);
         ChunkPos chunkPos = chunk.getPos();
+        StructureWeightSampler structureWeightSampler = StructureWeightSampler.createStructureWeightSampler(accessor, chunkPos);
         int i = chunkPos.getStartX();
         int j = chunkPos.getStartZ();
         AquiferSampler aquiferSampler = chunkNoiseSampler.getAquiferSampler();
@@ -286,7 +288,7 @@ public class AtlasChunkGenerator extends ChunkGenerator {
                                 mutable.set(blockX, blockY, blockZ);
                                 int seaLevel = this.getSeaLevel(blockX, blockZ);
                                 int elevation = (int) Math.min(this.getFromMap(blockX, blockZ, this.heightmap), this.startingY + this.getWorldHeight());
-                                if (blockY >= seaLevel && blockY >= elevation || elevation < this.getMinimumY()) continue;
+                                //if (blockY >= seaLevel && blockY >= elevation || elevation < this.getMinimumY()) continue;
                                 int height = blockY - minY;
                                 int maxHeight = elevation - minY;
                                 double cave;
@@ -300,10 +302,10 @@ public class AtlasChunkGenerator extends ChunkGenerator {
                                         caveAir = AIR;
                                     }
                                     if (blockY < elevation) {
-                                        if (cave > 0) {
-                                            state = defaultBlock;
-                                        } else {
+                                        if (cave < 0) {
                                             state = caveAir;
+                                        } else {
+                                            state = chunkNoiseSampler.sampleBlockState();
                                         }
                                     } else if (blockY < seaLevel) {
                                         state = defaultFluid;
@@ -311,20 +313,37 @@ public class AtlasChunkGenerator extends ChunkGenerator {
                                     else {
                                         state = AIR;
                                     }
+
+                                    if (state == null) {
+                                        state = this.settings.value().defaultBlock();
+                                    }
                                     chunk.setBlockState(mutable, state, false);
                                     surfaceHeightmap.trackUpdate(blockX & 0xF, blockY, blockZ & 0xF, state);
                                     oceanHeightmap.trackUpdate(blockX & 0xF, blockY, blockZ & 0xF, state);
                                 } else {
+
                                     state = chunkNoiseSampler.sampleBlockState();
+
                                     if (state == null) {
                                         state = this.settings.value().defaultBlock();
                                     }
-                                    if ((state == AIR || SharedConstants.isOutsideGenerationArea(chunk.getPos()))) continue;
+                                    if ((state == AIR || SharedConstants.isOutsideGenerationArea(chunk.getPos())));// continue;
                                     chunkSection.setBlockState(x, t, aa, state, false);
                                     oceanHeightmap.trackUpdate(x, s, aa, state);
                                     surfaceHeightmap.trackUpdate(x, s, aa, state);
                                 }
-                                if (!aquiferSampler.needsFluidTick() || state.getFluidState().isEmpty()) continue;
+
+                                if( structureWeightSampler.sample(chunkNoiseSampler) > 0.001 ){
+                                    state = defaultBlock;
+
+                                } else if ( structureWeightSampler.sample(chunkNoiseSampler) < -0.001 ) {
+                                    state = AIR;
+                                }
+                                chunk.setBlockState(mutable, state, false);
+                                surfaceHeightmap.trackUpdate(blockX & 0xF, blockY, blockZ & 0xF, state);
+                                oceanHeightmap.trackUpdate(blockX & 0xF, blockY, blockZ & 0xF, state);
+
+                                if (!aquiferSampler.needsFluidTick() || state.getFluidState().isEmpty());
                                 mutable.set(w, s, z);
                                 chunk.markBlockForPostProcessing(mutable);
                             }
@@ -335,6 +354,9 @@ public class AtlasChunkGenerator extends ChunkGenerator {
             chunkNoiseSampler.swapBuffers();
         }
         chunkNoiseSampler.stopInterpolation();
+
+        //HERE ???
+
         return chunk;
     }
 
@@ -393,6 +415,7 @@ public class AtlasChunkGenerator extends ChunkGenerator {
     private ChunkNoiseSampler createChunkNoiseSampler(Chunk chunk, StructureAccessor world, Blender blender, NoiseConfig noiseConfig) {
         return ChunkNoiseSampler.create(chunk, noiseConfig, StructureWeightSampler.createStructureWeightSampler(world, chunk.getPos()), this.settings.value(), this.createFluidLevelSampler(this.settings.value()), blender);
     }
+
     private AquiferSampler.FluidLevelSampler createFluidLevelSampler(ChunkGeneratorSettings settings) {
         AquiferSampler.FluidLevel fluidLevel = new AquiferSampler.FluidLevel(-54, Blocks.LAVA.getDefaultState());
         int i = settings.seaLevel();
