@@ -292,6 +292,7 @@ public class AtlasChunkGenerator extends ChunkGenerator {
                                 int height = blockY - minY;
                                 int maxHeight = elevation - minY;
                                 double cave;
+                                double structure = structureWeightSampler.sample(chunkNoiseSampler);
                                 BlockState state;
                                 if (maxHeight - height <= 10) {
                                     cave = noiseConfig.getNoiseRouter().initialDensityWithoutJaggedness().sample(chunkNoiseSampler);
@@ -305,7 +306,7 @@ public class AtlasChunkGenerator extends ChunkGenerator {
                                         if (cave < 0) {
                                             state = caveAir;
                                         } else {
-                                            state = chunkNoiseSampler.sampleBlockState();
+                                            state = defaultBlock;//chunkNoiseSampler.sampleBlockState();
                                         }
                                     } else if (blockY < seaLevel) {
                                         state = defaultFluid;
@@ -333,15 +334,15 @@ public class AtlasChunkGenerator extends ChunkGenerator {
                                     surfaceHeightmap.trackUpdate(x, s, aa, state);
                                 }
 
-                                if( structureWeightSampler.sample(chunkNoiseSampler) > 0.001 ){
+                                if( structure > 0.05 ){
                                     state = defaultBlock;
+                                    chunk.setBlockState(mutable, state, false);
 
-                                } else if ( structureWeightSampler.sample(chunkNoiseSampler) < -0.001 ) {
+                                } else if ( structure < -0.07 ) {
                                     state = AIR;
+                                    chunk.setBlockState(mutable, state, false);
                                 }
-                                chunk.setBlockState(mutable, state, false);
-                                surfaceHeightmap.trackUpdate(blockX & 0xF, blockY, blockZ & 0xF, state);
-                                oceanHeightmap.trackUpdate(blockX & 0xF, blockY, blockZ & 0xF, state);
+
 
                                 if (!aquiferSampler.needsFluidTick() || state.getFluidState().isEmpty());
                                 mutable.set(w, s, z);
