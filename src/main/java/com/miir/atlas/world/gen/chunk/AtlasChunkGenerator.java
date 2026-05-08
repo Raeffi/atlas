@@ -334,15 +334,24 @@ public class AtlasChunkGenerator extends ChunkGenerator {
                                     surfaceHeightmap.trackUpdate(x, s, aa, state);
                                 }
 
-                                if( structure > 0.05 ){
+                                // Save what the terrain naturally generated here, before structure overrides it
+                                BlockState preStructureState = state;
+
+                                if (structure > 0.05) {
                                     state = defaultBlock;
                                     chunk.setBlockState(mutable, state, false);
-
-                                } else if ( structure < -0.07 ) {
-                                    state = AIR;
-                                    chunk.setBlockState(mutable, state, false);
+                                } else if (structure < -0.07) {
+                                    if (!preStructureState.getFluidState().isEmpty()) {
+                                        // Was naturally a fluid — leave it completely alone
+                                    } else if (preStructureState == defaultBlock) {
+                                        // Was solid and beard wants to carve it —
+                                        // only fill with water if we're genuinely in a water context
+                                        state = !aquiferSampler.needsFluidTick() ? AIR
+                                                : blockY < seaLevel ? defaultFluid : AIR;
+                                        chunk.setBlockState(mutable, state, false);
+                                    }
+                                    // Was already AIR (dry cave) — leave it alone
                                 }
-
 
                                 if (!aquiferSampler.needsFluidTick() || state.getFluidState().isEmpty());
                                 mutable.set(w, s, z);
