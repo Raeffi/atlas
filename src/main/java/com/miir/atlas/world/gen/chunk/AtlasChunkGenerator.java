@@ -334,7 +334,10 @@ public class AtlasChunkGenerator extends ChunkGenerator {
                                     surfaceHeightmap.trackUpdate(x, s, aa, state);
                                 }
 
-                                // Save what the terrain naturally generated here, before structure overrides it
+                                // Declare before the outer o loop
+                                boolean[][] hasFluidAbove = new boolean[16][16];
+
+                                // Then replace your structure override block with:
                                 BlockState preStructureState = state;
 
                                 if (structure > 0.05) {
@@ -342,15 +345,23 @@ public class AtlasChunkGenerator extends ChunkGenerator {
                                     chunk.setBlockState(mutable, state, false);
                                 } else if (structure < -0.07) {
                                     if (!preStructureState.getFluidState().isEmpty()) {
-                                        // Was naturally a fluid — leave it completely alone
+                                        // Natural fluid — leave alone
                                     } else if (preStructureState == defaultBlock) {
-                                        // Was solid and beard wants to carve it —
-                                        // only fill with water if we're genuinely in a water context
-                                        state = !aquiferSampler.needsFluidTick() ? AIR
-                                                : blockY < seaLevel ? defaultFluid : AIR;
+                                        boolean underwater = elevation < seaLevel;
+                                        boolean fluidAbove = hasFluidAbove[x][aa]; // x = w&0xF, aa = z&0xF
+
+                                        state = (underwater || fluidAbove) ? defaultFluid : AIR;
                                         chunk.setBlockState(mutable, state, false);
                                     }
-                                    // Was already AIR (dry cave) — leave it alone
+                                    // Was already AIR (dry cave) — leave alone
+                                }
+
+                                // Update tracking array after placing the block
+                                if (!state.getFluidState().isEmpty()) {
+                                    hasFluidAbove[x][aa] = true;
+                                } else if (state != AIR) {
+                                    // Solid block resets the column — water can't flow through it
+                                    hasFluidAbove[x][aa] = false;
                                 }
 
                                 if (!aquiferSampler.needsFluidTick() || state.getFluidState().isEmpty());
